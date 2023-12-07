@@ -1,0 +1,69 @@
+DROP TABLE IF EXISTS purchases;
+DROP TABLE IF EXISTS products;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS store;
+
+CREATE TABLE users (
+    user_id SERIAL PRIMARY KEY,
+    username VARCHAR(64) NOT NULL,
+    balance INT DEFAULT 0
+);
+
+CREATE TABLE store (
+    store_id SERIAL PRIMARY KEY,
+    balance INT NOT NULL
+);
+
+CREATE TABLE products (
+    product_id SERIAL PRIMARY KEY,
+    product_name VARCHAR(64) NOT NULL, 
+    price INT NOT NULL,
+	store_id INT REFERENCES store(store_id)
+);
+
+CREATE TABLE purchases (
+    purchase_id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(user_id),
+    product_id INT REFERENCES products(product_id),
+    purchase_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO store (balance) VALUES 
+	(0);
+
+INSERT INTO users (username, balance) VALUES 
+	('Ivan', 50000),
+	('Ruslan', 30000);
+	
+INSERT INTO products (product_name, price) VALUES 
+	('Утюг', 10000),
+	('Фен', 12000);
+
+
+CREATE OR REPLACE PROCEDURE make_purchase(
+    in_user_id INT,
+    in_product_id INT
+) AS $$
+DECLARE
+    user_balance INT;
+    product_price INT;
+BEGIN
+    SELECT balance INTO user_balance FROM users WHERE user_id = in_user_id;
+    SELECT price INTO product_price FROM products WHERE product_id = in_product_id;
+    IF user_balance >= product_price THEN
+        UPDATE users SET balance = user_balance - product_price WHERE user_id = in_user_id;
+
+        UPDATE store SET balance = balance + product_price WHERE store_id = 
+		(SELECT store_id FROM products WHERE product_id = in_product_id);
+
+        INSERT INTO purchases(user_id, product_id, purchase_date) VALUES (in_user_id, in_product_id, now());
+        
+        RAISE NOTICE 'успешно';
+    ELSE
+        RAISE EXCEPTION 'недостаточно средств';
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+CALL make_purchase(2, 1);
+SELECT * FROM purchases;
